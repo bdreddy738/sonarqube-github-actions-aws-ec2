@@ -1,23 +1,25 @@
-AWS Console
-↓
-EC2
-↓
-Launch Instance
+# ==========================================================
+# SONARQUBE INSTALLATION ON AWS EC2 (AMAZON LINUX 2)
+# ==========================================================
 
-Name            : sonarqube-server
-AMI             : Amazon Linux 2
-Instance Type   : t3.medium
-Key Pair        : Create New / Existing
-Storage         : 30 GB gp3
+# AWS EC2 Configuration
+# ---------------------
+# AMI            : Amazon Linux 2
+# Instance Type  : t3.medium
+# Storage        : 30 GB gp3
+# Security Group :
+#   TCP 22   -> Your IP
+#   TCP 9000 -> 0.0.0.0/0
 
-Security Group:
-SSH   (22)   -> My IP
-TCP   (9000) -> 0.0.0.0/0
+# Connect to EC2
+ssh -i sonarqube.pem ec2-user@<PUBLIC-IP>
 
-Launch Instance
-↓
-Copy Public IP
 
+# Update Server
+dnf update -y
+
+# Become Root
+sudo su -
 
 # Install Java
 sudo dnf install java-17-amazon-corretto -y
