@@ -20,7 +20,7 @@ Copy Public IP
 
 
 # Install Java
-yum install java-11-openjdk -y
+sudo dnf install java-17-amazon-corretto -y
 
 # Verify Java
 java -version
@@ -37,14 +37,42 @@ unzip sonarqube-8.9.10.61524.zip
 # Rename
 mv sonarqube-8.9.10.61524 sonar
 
+cd /sonar
+cd /bin
+cd linux-x86-64/
+cd ..
+cd ..
+cd conf
+ll
+sonar.properties to change port number if required and db config
+cd ..
+ll
+cd lib
+cd ..
+cd logs
+cd ..
+
+cd /opt
+
 # Create sonar user
 useradd sonar
+cd id sonar
 
 # Change ownership
-chown -R sonar:sonar /opt/sonar
+chown -R sonar:sonar sonar
+ll
+cd sonar
+ll
+cd ..
+
 
 # Create service file
-cat <<EOF > /etc/systemd/system/sonar.service
+cd etc/systemd/system
+ll
+vim sonar.service
+or 
+
+cat > /etc/systemd/system/sonar.service <<EOF
 [Unit]
 Description=sonar 8.9.10 service
 After=network.target
@@ -65,9 +93,15 @@ Restart=Always
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd
-systemctl daemon-reload
 
+cd etc/systemd/system
+cd chmod 777 sonar.service
+ll
+cd ..
+cd ..
+move to root
+
+ 
 # Enable service
 systemctl enable sonar.service
 
