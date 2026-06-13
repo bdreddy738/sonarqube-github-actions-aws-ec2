@@ -13,11 +13,13 @@
 ssh -i sonarqube.pem ec2-user@<PUBLIC-IP>
 
 
+# Become Root
+sudo su -
+
 # Update Server
 dnf update -y
 
-# Become Root
-sudo su -
+
 
 # Install Java
 sudo dnf install java-17-amazon-corretto -y
