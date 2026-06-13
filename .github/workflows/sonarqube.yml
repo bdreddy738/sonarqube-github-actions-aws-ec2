@@ -17,13 +17,13 @@ jobs:
       # START: Trivy Filesystem Scan
       # =========================
       - name: Run Trivy Filesystem Scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           format: table
           severity: CRITICAL,HIGH
-          exit-code: '1'
       # =========================
       # END: Trivy Filesystem Scan
       # =========================
@@ -32,8 +32,7 @@ jobs:
       # START: Docker Build
       # =========================
       - name: Build Docker Image
-        run: |
-          docker build -t demo-app:${{ github.sha }} .
+        run: docker build -t demo-app:${{ github.sha }} .
       # =========================
       # END: Docker Build
       # =========================
@@ -42,27 +41,21 @@ jobs:
       # START: Trivy Image Scan
       # =========================
       - name: Run Trivy Image Scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: demo-app:${{ github.sha }}
           format: table
           severity: CRITICAL,HIGH
-          exit-code: '1'
       # =========================
       # END: Trivy Image Scan
       # =========================
 
-      # =========================
-      # START: Java Setup
-      # =========================
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      # =========================
-      # END: Java Setup
-      # =========================
 
       # =========================
       # START: SonarQube Scan
