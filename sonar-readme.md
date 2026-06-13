@@ -1,10 +1,14 @@
-# SONARREADME.md
-
-# SonarQube Integration with GitHub Actions on AWS EC2 (Amazon Linux 2023)
+# SonarQube + Trivy + Docker Integration with GitHub Actions on AWS EC2 (Amazon Linux 2023)
 
 ## Project Overview
 
-This document describes the complete setup of SonarQube, Sonar Scanner, GitHub Actions integration, GitHub Secrets configuration, and automated code quality analysis for the AIOps project.
+This project demonstrates an end-to-end DevSecOps pipeline using:
+
+* SonarQube for Code Quality Analysis
+* Trivy for Vulnerability Scanning
+* Docker for Containerization
+* GitHub Actions for CI/CD Automation
+* AWS EC2 for SonarQube Hosting
 
 ---
 
@@ -19,35 +23,49 @@ GitHub Repository
     v
 GitHub Actions
     |
-    v
-SonarQube Scanner
+    +--> Trivy Filesystem Scan
+    |
+    +--> Docker Build
+    |
+    +--> Trivy Image Scan
+    |
+    +--> SonarQube Scan
+    |
+    +--> Quality Gate Validation
     |
     v
 SonarQube Server (AWS EC2)
-    |
-    v
-Quality Gate / Code Analysis
 ```
 
 ---
 
 # Environment Details
 
-| Component  | Value                   |
-| ---------- | ----------------------- |
-| OS         | Amazon Linux 2023       |
-| Java       | Amazon Corretto/OpenJDK |
-| SonarQube  | Community Edition       |
-| Repository | aiops-mlops-devops-labs |
-| Branch     | main                    |
-| CI/CD      | GitHub Actions          |
+| Component        | Value                            |
+| ---------------- | -------------------------------- |
+| OS               | Amazon Linux 2023                |
+| Java             | Amazon Corretto 17               |
+| SonarQube        | Community Edition                |
+| Repository       | sonarqube-github-actions-aws-ec2 |
+| Branch           | main                             |
+| CI/CD            | GitHub Actions                   |
+| Security Scanner | Trivy                            |
+| Containerization | Docker                           |
 
 ---
 
 # Step 1: Connect to EC2
 
-```bash
-ssh -i key.pem ec2-user@<PUBLIC-IP>
+AWS Console:
+
+```text
+AWS Console
+→ EC2
+→ Instances
+→ Select Instance
+→ Connect
+→ EC2 Instance Connect
+→ Connect
 ```
 
 Become root:
@@ -56,108 +74,97 @@ Become root:
 sudo su -
 ```
 
----
-
-# Step 2: Verify Java Installation
-
-Check Java:
-
-```bash
-java -version
-```
-
-Example Output:
-
-```text
-openjdk version "26.0.1"
-OpenJDK Runtime Environment Corretto
-```
-
-If Java is not installed:
-
-```bash
-sudo dnf install java-17-amazon-corretto -y
-```
-
 Verify:
 
 ```bash
+whoami
+```
+
+Expected:
+
+```text
+root
+```
+
+---
+
+# Step 2: Update Server
+
+```bash
+dnf update -y
+```
+
+---
+
+# Step 3: Install Java
+
+```bash
+dnf install java-17-amazon-corretto -y
+
 java -version
 ```
 
 ---
 
-# Step 3: Download SonarQube
+# Step 4: Install Required Packages
 
-Move to opt directory:
+```bash
+dnf install wget unzip git -y
+```
+
+---
+
+# Step 5: Configure Amazon Linux 2023 Kernel Settings
+
+```bash
+echo "vm.max_map_count=524288" >> /etc/sysctl.conf
+
+echo "fs.file-max=131072" >> /etc/sysctl.conf
+
+sysctl -p
+```
+
+Configure limits:
+
+```bash
+echo "sonar   -   nofile   131072" >> /etc/security/limits.conf
+
+echo "sonar   -   nproc    8192" >> /etc/security/limits.conf
+```
+
+---
+
+# Step 6: Download SonarQube
 
 ```bash
 cd /opt
-```
 
-Download SonarQube:
-
-```bash
 wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-25.6.0.109173.zip
-```
 
-Install unzip:
-
-```bash
-dnf install unzip -y
-```
-
-Extract:
-
-```bash
 unzip sonarqube-25.6.0.109173.zip
-```
 
-Rename:
-
-```bash
 mv sonarqube-25.6.0.109173 sonarqube
 ```
 
 ---
 
-# Step 4: Create SonarQube User
+# Step 7: Create SonarQube User
 
 ```bash
 useradd sonar
-```
 
-Assign ownership:
-
-```bash
 chown -R sonar:sonar /opt/sonarqube
-```
-
-Verify:
-
-```bash
-ls -ld /opt/sonarqube
 ```
 
 ---
 
-# Step 5: Start SonarQube
-
-Switch user:
+# Step 8: Start SonarQube
 
 ```bash
 su - sonar
-```
 
-Navigate:
-
-```bash
 cd /opt/sonarqube/bin/linux-x86-64
-```
 
-Start:
-
-```bash
 ./sonar.sh start
 ```
 
@@ -167,28 +174,12 @@ Verify:
 ps -ef | grep sonar
 ```
 
-Expected:
-
-```text
-java
-elasticsearch
-sonarqube
-```
-
 ---
 
-# Step 6: Open SonarQube
-
-Browser:
+# Step 9: Open SonarQube
 
 ```text
-http://<PUBLIC-IP>:9000
-```
-
-Example:
-
-```text
-http://98.93.100.67:9000
+http://<EC2-PUBLIC-IP>:9000
 ```
 
 Default Credentials:
@@ -202,105 +193,53 @@ Change password after first login.
 
 ---
 
-# Step 7: Create SonarQube Project
-
-Navigate:
+# Step 10: Create SonarQube Project
 
 ```text
 Projects
 → Create Project
-```
 
-Create:
-
-```text
 Project Key  : demo-project
 Project Name : demo-project
 ```
 
-Save.
-
 ---
 
-# Step 8: Generate SonarQube Token
-
-Navigate:
+# Step 11: Generate SonarQube Token
 
 ```text
 My Account
 → Security
 → Generate Token
-```
 
-Example:
-
-```text
 Name : github-token
 ```
 
-Generated Token:
-
-```text
-squ_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Save token immediately.
+Save the generated token.
 
 ---
 
-# Step 9: Install Git
-
-```bash
-sudo dnf install git -y
-```
-
-Verify:
-
-```bash
-git --version
-```
-
----
-
-# Step 10: Clone Repository
+# Step 12: Clone Repository
 
 ```bash
 cd /opt
 
-git clone https://github.com/bdreddy738/aiops-mlops-devops-labs.git
-```
+git clone https://github.com/bdreddy738/sonarqube-github-actions-aws-ec2.git
 
-Navigate:
-
-```bash
-cd aiops-mlops-devops-labs
+cd sonarqube-github-actions-aws-ec2
 ```
 
 ---
 
-# Step 11: Install Sonar Scanner
-
-Navigate:
+# Step 13: Install Sonar Scanner
 
 ```bash
 cd /opt
-```
 
-Download:
-
-```bash
 curl -L -o sonar-scanner.zip https://repo.maven.apache.org/maven2/org/sonarsource/scanner/cli/sonar-scanner-cli/7.0.2.4839/sonar-scanner-cli-7.0.2.4839-linux-x64.zip
-```
 
-Extract:
-
-```bash
 unzip sonar-scanner.zip
-```
 
-Rename:
-
-```bash
 mv sonar-scanner-7.0.2.4839-linux-x64 sonar-scanner
 ```
 
@@ -308,11 +247,7 @@ Add PATH:
 
 ```bash
 echo 'export PATH=$PATH:/opt/sonar-scanner/bin' >> ~/.bashrc
-```
 
-Load profile:
-
-```bash
 source ~/.bashrc
 ```
 
@@ -322,190 +257,116 @@ Verify:
 sonar-scanner --version
 ```
 
-Expected:
+---
 
-```text
-SonarScanner CLI
-Java
-Linux
+# Step 14: Configure sonar-scanner.properties
+
+```bash
+vi /opt/sonar-scanner/conf/sonar-scanner.properties
+```
+
+Add:
+
+```properties
+sonar.host.url=http://<EC2-PUBLIC-IP>:9000
 ```
 
 ---
 
-# Step 12: Create sonar-project.properties
-
-Navigate:
-
-```bash
-cd /opt/aiops-mlops-devops-labs
-```
-
-Create file:
-
-```bash
-vi sonar-project.properties
-```
-
-Contents:
+# Step 15: Configure sonar-project.properties
 
 ```properties
 sonar.projectKey=demo-project
 sonar.projectName=demo-project
-sonar.sources=DAY-01/aiops-lab
-sonar.host.url=http://98.93.100.67:9000
-sonar.token=squ_xxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Save file.
-
----
-
-# Step 13: Manual Sonar Scan
-
-Run:
-
-```bash
-sonar-scanner
-```
-
-Expected:
-
-```text
-ANALYSIS SUCCESSFUL
-EXECUTION SUCCESS
+sonar.sources=.
 ```
 
 ---
 
-# Step 14: Configure GitHub Secrets
+# Step 16: Configure GitHub Secrets
 
-Navigate:
+GitHub Repository:
 
 ```text
-Repository
-→ Settings
-→ Secrets and variables
+Settings
+→ Secrets and Variables
 → Actions
 ```
-
-Create Secret 1:
-
-```text
-Name  : SONAR_TOKEN
-Value : squ_xxxxxxxxxxxxxxxxxxxxx
-```
-
-Create Secret 2:
-
-```text
-Name  : SONAR_HOST_URL
-Value : http://98.93.100.67:9000
-```
-
-Important:
-
-Store actual values.
-
-Do NOT store:
-
-```text
-${{ secrets.SONAR_TOKEN }}
-${{ secrets.SONAR_HOST_URL }}
-```
-
----
-
-# Step 15: Create GitHub Workflow
 
 Create:
 
 ```text
-.github/workflows/sonarqube.yml
-```
+SONAR_TOKEN=<generated-token>
 
-Contents:
-
-```yaml
-name: SonarQube Scan
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  sonar:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+SONAR_HOST_URL=http://<EC2-PUBLIC-IP>:9000
 ```
 
 ---
 
-# Step 16: Push Workflow
+# Step 17: GitHub Actions Workflow
+
+Pipeline Flow:
+
+```text
+Checkout Code
+      ↓
+Trivy Filesystem Scan
+      ↓
+Docker Build
+      ↓
+Trivy Image Scan
+      ↓
+Setup Java
+      ↓
+SonarQube Scan
+      ↓
+Quality Gate Validation
+```
+
+---
+
+# Step 18: Push Changes
 
 ```bash
-git add .
+git add . && git commit -m "Added DevSecOps pipeline with Trivy, Docker and SonarQube" && git push origin main
+```
 
-git commit -m "Added SonarQube integration"
+---
+
+# Step 19: Trigger Pipeline Again
+
+```bash
+git commit --allow-empty -m "Trigger DevSecOps pipeline"
 
 git push origin main
 ```
 
 ---
 
-# Step 17: Trigger Scan Without Code Changes
-
-```bash
-git commit --allow-empty -m "Trigger SonarQube scan"
-
-git push origin main
-```
-
-Purpose:
+# Step 20: Verify GitHub Actions
 
 ```text
-Trigger GitHub Actions
-Trigger SonarQube Analysis
-No source code changes required
-```
-
----
-
-# Step 18: Verify GitHub Actions
-
-Navigate:
-
-```text
-GitHub Repository
+Repository
 → Actions
 ```
 
 Expected:
 
 ```text
-SonarQube Scan
-✓ Success
+✓ Trivy Filesystem Scan
+
+✓ Docker Build
+
+✓ Trivy Image Scan
+
+✓ SonarQube Scan
+
+✓ Quality Gate Check
 ```
 
 ---
 
-# Step 19: Verify SonarQube Dashboard
-
-Navigate:
+# Step 21: Verify SonarQube Dashboard
 
 ```text
 Projects
@@ -522,181 +383,56 @@ Maintainability Rating
 Code Smells
 Bugs
 Vulnerabilities
-Coverage
-Duplications
-```
-
-Expected:
-
-```text
-Quality Gate : Passed
-Security     : A
-Reliability  : A
-Maintainability : A
 ```
 
 ---
 
-# Common Troubleshooting
+# AWS Security Group
 
-## SonarQube Not Starting
+```text
+SSH             22      My IP
 
-Check:
-
-```bash
-ps -ef | grep sonar
+Custom TCP      9000    0.0.0.0/0
 ```
 
 ---
 
-## Port 9000 Not Reachable
-
-Verify AWS Security Group:
+# Repository Structure
 
 ```text
-TCP 9000
-Source 0.0.0.0/0
+sonarqube-github-actions-aws-ec2/
+│
+├── .github/
+│   └── workflows/
+│       └── sonarqube.yml
+│
+├── Dockerfile
+├── index.html
+├── sonar-project.properties
+├── README.md
+└── SONARREADME.md
 ```
 
 ---
-
-## Invalid Token
-
-Generate new token:
-
-```text
-My Account
-→ Security
-→ Generate Token
-```
-
-Update:
-
-```text
-SONAR_TOKEN
-```
-
-GitHub Secret.
-
----
-
-## Project Not Found
-
-Verify:
-
-```properties
-sonar.projectKey=demo-project
-```
-
-Matches SonarQube project key.
-
----
-
-## Invalid Source Directory
-
-Verify:
-
-```properties
-sonar.sources=DAY-01/aiops-lab
-```
-
-Directory exists in repository.
-
----
-# Step 11A: Configure sonar-scanner.properties
-
-After installing Sonar Scanner, verify the global scanner configuration file.
-
-Location:
-
-```bash
-/opt/sonar-scanner/conf/sonar-scanner.properties
-```
-
-Open file:
-
-```bash
-vi /opt/sonar-scanner/conf/sonar-scanner.properties
-```
-
-Default configuration:
-
-```properties
-#----- Default SonarQube server
-#sonar.host.url=http://localhost:9000
-```
-
-Update as needed:
-
-```properties
-sonar.host.url=http://98.93.100.67:9000
-```
-
-Save and exit.
-
-Verify configuration:
-
-```bash
-cat /opt/sonar-scanner/conf/sonar-scanner.properties
-```
-
-Purpose:
-
-* Global Sonar Scanner configuration
-* Defines default SonarQube server URL
-* Used when executing manual scans from EC2
-* Applies to all projects scanned from this scanner installation
-
-Example manual scan flow:
-
-```bash
-cd /opt/aiops-mlops-devops-labs
-
-sonar-scanner
-```
-
-Difference between configuration files:
-
-| File                     | Purpose               | Scope               |
-| ------------------------ | --------------------- | ------------------- |
-| sonar-scanner.properties | Scanner configuration | Global              |
-| sonar-project.properties | Project configuration | Repository Specific |
-
-Global Configuration:
-
-```text
-/opt/sonar-scanner/conf/sonar-scanner.properties
-```
-
-Project Configuration:
-
-```text
-aiops-mlops-devops-labs/sonar-project.properties
-```
-https://docs.sonarsource.com/sonarqube-server/9.8/try-out-sonarqube
 
 # Final Result
 
 ✅ SonarQube Installed
 
-✅ SonarQube Running on AWS EC2
-
 ✅ Sonar Scanner Installed
 
-✅ Project Created
+✅ SonarQube Running on AWS EC2
 
-✅ Token Generated
+✅ Docker Build Enabled
 
-✅ Manual Scan Successful
+✅ Trivy Filesystem Scan Enabled
 
-✅ GitHub Secrets Configured
+✅ Trivy Image Scan Enabled
 
 ✅ GitHub Actions Integrated
 
-✅ SonarQube Scan Action v6 Configured
+✅ GitHub Secrets Configured
 
-✅ Automated Code Quality Analysis Enabled
+✅ SonarQube Quality Gate Validation Working
 
-✅ Quality Gate Validation Working
-
-✅ End-to-End DevSecOps Integration Completed
+✅ End-to-End DevSecOps Pipeline Completed
